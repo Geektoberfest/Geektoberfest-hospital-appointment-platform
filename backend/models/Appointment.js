@@ -13,6 +13,12 @@ const appointmentSchema = new mongoose.Schema(
     endTime: { type: String, required: true },
     status: { type: String, enum: ['booked', 'completed', 'cancelled'], default: 'booked' },
     reason: { type: String, trim: true, default: '', maxlength: 500 },
+    cancellationReason: { type: String, trim: true, default: '', maxlength: 500 },
+    review: {
+      rating: { type: Number, min: 1, max: 5 },
+      comment: { type: String, trim: true, default: '', maxlength: 1000 },
+      reviewedAt: { type: Date },
+    },
     notes: { type: String, trim: true, default: '', maxlength: 1000 }, // doctor notes
     prescription: { type: String, trim: true, default: '', maxlength: 2000 },
     cancelledBy: { type: String, enum: ['', 'patient', 'doctor', 'admin'], default: '' },
@@ -33,13 +39,14 @@ appointmentSchema.index(
 );
 appointmentSchema.index({ patient: 1, date: -1 });
 appointmentSchema.index({ doctor: 1, date: -1 });
+appointmentSchema.index({ doctor: 1, 'review.rating': 1 });
 
 /** Populate config shared by every controller that returns appointments. */
 const populateFields = [
   { path: 'patient', select: 'name email phone' },
   {
     path: 'doctor',
-    select: 'user department specialization consultationFee',
+    select: 'user department specialization consultationFee ratingAverage reviewCount',
     populate: [
       { path: 'user', select: 'name email' },
       { path: 'department', select: 'name' },

@@ -11,5 +11,6 @@ router.get('/my', authorize('patient'), c.getMyAppointments);
 router.get('/:id', c.getAppointment); // ownership checked in controller
 router.patch('/:id/cancel', c.cancelAppointment); // ownership checked in controller
 router.patch('/:id/status', authorize('doctor', 'admin'), c.updateAppointmentStatus);
+router.post('/:id/review', authorize('patient'), c.submitAppointmentReview);
 
 module.exports = router;

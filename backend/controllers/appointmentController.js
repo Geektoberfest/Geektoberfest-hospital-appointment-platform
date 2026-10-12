@@ -4,6 +4,7 @@ const Doctor = require('../models/Doctor');
 const { HttpError, asyncHandler } = require('../middlewares/errorHandler');
 const { isValidObjectId, isValidDate, isValidTime, isPastSlot } = require('../utils/validators');
 const { assignFromWaitingList } = require('./waitingListController');
+const { clearCache } = require('../config/redis');
 
 const STATUSES = ['booked', 'completed', 'cancelled'];
 
@@ -118,12 +119,15 @@ const getAppointment = asyncHandler(async (req, res) => {
 });
 
 /** Cancel a booked appointment, then offer the freed slot to the waiting list. */
-const cancelAndReassign = async (appointment, actor) => {
+const cancelAndReassign = async (appointment, actor, cancellationReason = '') => {
   if (appointment.status !== 'booked') {
     throw new HttpError(409, `Only booked appointments can be cancelled (current status: ${appointment.status})`);
   }
   appointment.status = 'cancelled';
   appointment.cancelledBy = actor;
+  if (cancellationReason) {
+    appointment.cancellationReason = cancellationReason;
+  }
   await appointment.save();
   return assignFromWaitingList(appointment);
 };
@@ -133,15 +137,36 @@ const cancelAppointment = asyncHandler(async (req, res) => {
   const appointment = await loadAppointment(req.params.id);
   const actor = await getActor(req.user, appointment);
   if (!actor) throw new HttpError(403, 'You are not allowed to cancel this appointment');
-  const reassigned = await cancelAndReassign(appointment, actor);
+
+  const { cancellationReason, reason } = req.body || {};
+  const reasonInput = cancellationReason !== undefined ? cancellationReason : reason;
+
+  if (actor === 'patient') {
+    if (!reasonInput || typeof reasonInput !== 'string' || !reasonInput.trim()) {
+      throw new HttpError(400, 'Cancellation reason is required');
+    }
+    if (reasonInput.trim().length > 500) {
+      throw new HttpError(400, 'Cancellation reason must be under 500 characters');
+    }
+  } else if (reasonInput !== undefined) {
+    if (typeof reasonInput !== 'string') {
+      throw new HttpError(400, 'Cancellation reason must be a string');
+    }
+    if (reasonInput.trim().length > 500) {
+      throw new HttpError(400, 'Cancellation reason must be under 500 characters');
+    }
+  }
+
+  const trimmedReason = reasonInput ? reasonInput.trim() : '';
+  const reassigned = await cancelAndReassign(appointment, actor, trimmedReason);
   await respond(res, 200, 'Appointment cancelled', appointment, {
     reassignedAppointmentId: reassigned ? reassigned._id : null,
   });
 });
 
-// PATCH /api/appointments/:id/status  (doctor own / admin)  body: { status, reason, notes, prescription }
+// PATCH /api/appointments/:id/status  (doctor own / admin)  body: { status, reason, notes, prescription, cancellationReason }
 const updateAppointmentStatus = asyncHandler(async (req, res) => {
-  const { status, reason, notes, prescription } = req.body;
+  const { status, reason, notes, prescription, cancellationReason } = req.body;
   if (!['completed', 'cancelled'].includes(status)) {
     throw new HttpError(400, 'Status must be completed or cancelled');
   }
@@ -154,6 +179,9 @@ const updateAppointmentStatus = asyncHandler(async (req, res) => {
   if (prescription !== undefined && (typeof prescription !== 'string' || prescription.length > 2000)) {
     throw new HttpError(400, 'Prescription must be under 2000 characters');
   }
+  if (cancellationReason !== undefined && (typeof cancellationReason !== 'string' || cancellationReason.length > 500)) {
+    throw new HttpError(400, 'Cancellation reason must be under 500 characters');
+  }
   const appointment = await loadAppointment(req.params.id);
   const actor = await getActor(req.user, appointment);
   if (actor !== 'doctor' && actor !== 'admin') {
@@ -165,7 +193,8 @@ const updateAppointmentStatus = asyncHandler(async (req, res) => {
 
   let reassigned = null;
   if (status === 'cancelled') {
-    reassigned = await cancelAndReassign(appointment, actor);
+    const cancelReason = cancellationReason !== undefined ? cancellationReason.trim() : (reason !== undefined ? reason.trim() : '');
+    reassigned = await cancelAndReassign(appointment, actor, cancelReason);
   } else {
     if (appointment.status !== 'booked') {
       throw new HttpError(409, `Only booked appointments can be completed (current status: ${appointment.status})`);
@@ -178,6 +207,97 @@ const updateAppointmentStatus = asyncHandler(async (req, res) => {
   });
 });
 
+// POST /api/appointments/:id/review  (patient own)  body: { rating, comment }
+const submitAppointmentReview = asyncHandler(async (req, res) => {
+  const { id } = req.params;
+  if (!isValidObjectId(id)) throw new HttpError(400, 'Invalid appointment id');
+
+  const { rating, comment = '' } = req.body || {};
+
+  if (rating === undefined || rating === null) {
+    throw new HttpError(400, 'Rating is required');
+  }
+  if (typeof rating !== 'number' || !Number.isInteger(rating) || rating < 1 || rating > 5) {
+    throw new HttpError(400, 'Rating must be an integer between 1 and 5');
+  }
+  if (typeof comment !== 'string') {
+    throw new HttpError(400, 'Comment must be a string');
+  }
+  if (comment.length > 1000) {
+    throw new HttpError(400, 'Comment must be under 1000 characters');
+  }
+
+  const appointment = await loadAppointment(id);
+
+  if (String(appointment.patient) !== String(req.user._id)) {
+    throw new HttpError(403, 'You can only review your own appointments');
+  }
+  if (appointment.status !== 'completed') {
+    throw new HttpError(409, `Only completed appointments can be reviewed (current status: ${appointment.status})`);
+  }
+  if (appointment.review && appointment.review.rating) {
+    throw new HttpError(409, 'This consultation has already been reviewed');
+  }
+
+  // Atomic update to ensure no concurrent review submissions succeed
+  const updated = await Appointment.findOneAndUpdate(
+    {
+      _id: appointment._id,
+      patient: req.user._id,
+      status: 'completed',
+      $or: [
+        { 'review.rating': { $exists: false } },
+        { 'review.rating': null },
+      ],
+    },
+    {
+      $set: {
+        review: {
+          rating,
+          comment: comment.trim(),
+          reviewedAt: new Date(),
+        },
+      },
+    },
+    { new: true }
+  );
+
+  if (!updated) {
+    throw new HttpError(409, 'This consultation has already been reviewed');
+  }
+
+  // Recalculate doctor rating aggregates accurately from persisted reviews
+  const stats = await Appointment.aggregate([
+    {
+      $match: {
+        doctor: updated.doctor,
+        'review.rating': { $exists: true, $ne: null },
+      },
+    },
+    {
+      $group: {
+        _id: null,
+        averageRating: { $avg: '$review.rating' },
+        reviewCount: { $sum: 1 },
+      },
+    },
+  ]);
+
+  if (stats.length > 0) {
+    await Doctor.updateOne(
+      { _id: updated.doctor },
+      {
+        ratingAverage: Math.round(stats[0].averageRating * 10) / 10,
+        reviewCount: stats[0].reviewCount,
+      }
+    );
+  }
+
+  await clearCache('doctors:*');
+
+  await respond(res, 201, 'Review submitted successfully', updated);
+});
+
 module.exports = {
   bookAppointment,
   listAppointments,
@@ -185,4 +305,5 @@ module.exports = {
   getAppointment,
   cancelAppointment,
   updateAppointmentStatus,
+  submitAppointmentReview,
 };
