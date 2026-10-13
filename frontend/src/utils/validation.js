@@ -1,4 +1,6 @@
-import { todayString, nowTimeString } from './format';
+// Explicit .js extension keeps this module loadable by plain Node ESM (the test runner),
+// matching the convention documented in src/api/axios.js.
+import { todayString, nowTimeString } from './format.js';
 
 export const isValidEmail = (v) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test((v || '').trim());
 

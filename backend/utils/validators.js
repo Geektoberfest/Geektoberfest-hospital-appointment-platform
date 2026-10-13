@@ -4,9 +4,13 @@ const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 const TIME_RE = /^([01]\d|2[0-3]):[0-5]\d$/;
 
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 const isValidEmail = (v) => typeof v === 'string' && EMAIL_RE.test(v.trim());
 const isValidObjectId = (v) => mongoose.Types.ObjectId.isValid(v) && String(v).length === 24;
 const isValidTime = (v) => typeof v === 'string' && TIME_RE.test(v);
+/** Session identifiers are random UUIDs, never Mongo ObjectIds. */
+const isValidSessionId = (v) => typeof v === 'string' && UUID_RE.test(v.trim());
 
 /** Strict YYYY-MM-DD check that also rejects things like 2025-02-31. */
 const isValidDate = (v) => {
@@ -66,6 +70,7 @@ const pick = (obj, keys) =>
 module.exports = {
   isValidEmail,
   isValidObjectId,
+  isValidSessionId,
   isValidDate,
   isValidTime,
   todayString,

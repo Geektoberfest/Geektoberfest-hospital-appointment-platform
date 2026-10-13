@@ -4,6 +4,43 @@ const Availability = require('../models/Availability');
 const Doctor = require('../models/Doctor');
 const { HttpError, asyncHandler } = require('../middlewares/errorHandler');
 const { isValidObjectId, isValidDate, isValidTime, todayString, isPastSlot } = require('../utils/validators');
+const notifications = require('../services/notificationService');
+
+/** Event name the patient's browser listens for (see frontend/src/context/NotificationContext.jsx). */
+const WAITLIST_ASSIGNED_EVENT = 'waitlist.assigned';
+
+/**
+ * Display name for the notification payload only.
+ *
+ * Best effort on purpose: this value is cosmetic, and a patient must never lose an
+ * already-booked reassigned slot because a name lookup failed. Called strictly after the
+ * appointment and the waiting-list entry are persisted.
+ */
+const lookupDoctorName = async (doctorId, known) => {
+  if (known?.user?.name) return known.user.name;
+  try {
+    const populated = await Doctor.findById(doctorId).populate('user', 'name');
+    return populated?.user?.name || '';
+  } catch {
+    return '';
+  }
+};
+
+/**
+ * Minimal, non-sensitive description of the reassigned appointment.
+ * Deliberately limited to what the patient needs to recognise the booking: no medical
+ * notes, no reason text, no contact details and no credentials.
+ */
+const buildAssignmentPayload = async ({ appointment, entry, doctor }) => ({
+  appointmentId: String(appointment._id),
+  waitingListEntryId: String(entry._id),
+  date: appointment.date,
+  startTime: appointment.startTime,
+  endTime: appointment.endTime,
+  doctorName: await lookupDoctorName(appointment.doctor, doctor),
+  specialization: doctor?.specialization || '',
+  status: appointment.status || 'booked',
+});
 
 /**
  * Called after an appointment is cancelled. Gives the freed slot to the first
@@ -46,6 +83,20 @@ const assignFromWaitingList = async (cancelled) => {
       entry.status = 'assigned';
       entry.appointment = appointment._id;
       await entry.save();
+
+      // Only now, once both writes have succeeded, tell the patient. Delivery errors are
+      // caught separately so a notification can never undo a persisted reassignment, and
+      // this runs exactly once per successful assignment (the loop returns immediately).
+      try {
+        notifications.notifyUser(
+          entry.patient,
+          WAITLIST_ASSIGNED_EVENT,
+          await buildAssignmentPayload({ appointment, entry, doctor })
+        );
+      } catch (err) {
+        console.error(`[waiting-list] assignment notification failed: ${err?.message || err}`);
+      }
+
       return appointment;
     } catch (err) {
       if (err.code === 11000) continue; // slot or patient time already taken, try the next entry
@@ -141,4 +192,11 @@ const cancelWaitingEntry = asyncHandler(async (req, res) => {
   res.status(200).json({ success: true, message: 'Waiting list entry cancelled', data: entry });
 });
 
-module.exports = { assignFromWaitingList, joinWaitingList, getMyWaitingList, getWaitingList, cancelWaitingEntry };
+module.exports = {
+  assignFromWaitingList,
+  joinWaitingList,
+  getMyWaitingList,
+  getWaitingList,
+  cancelWaitingEntry,
+  WAITLIST_ASSIGNED_EVENT,
+};

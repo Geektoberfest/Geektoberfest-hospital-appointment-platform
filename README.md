@@ -140,9 +140,14 @@ Set these in the Render backend service's Environment settings:
 NODE_ENV=production
 MONGO_URI=<your MongoDB Atlas connection string>
 JWT_SECRET=<a long, random, unique production secret>
-JWT_EXPIRES_IN=7d
+ACCESS_TOKEN_EXPIRES_IN=15m
 CLIENT_URL=https://hospital-appointment-platform-front.vercel.app
+TRUST_PROXY=1
 ```
+
+Access tokens are short lived (15 minutes by default) and bound to a session id. The long-lived credential is a refresh token stored in an HttpOnly cookie, so the frontend origin in `CLIENT_URL` must be allowed for credentialed requests. `JWT_EXPIRES_IN` is no longer used; see [issue-15-changes.md](issue-15-changes.md) for the refresh-token, session-revocation and audit-logging settings (`REFRESH_TOKEN_TTL_DAYS`, `REFRESH_TOKEN_GRACE_MS`, `REFRESH_COOKIE_SAMESITE`, `REFRESH_COOKIE_SECURE`).
+
+The waiting-list notification stream (`SSE_TICKET_TTL_MS`, `SSE_HEARTBEAT_MS`, `SSE_MAX_TICKETS`) and its reverse-proxy requirements are documented in [issue-11-changes.md](issue-11-changes.md). `CLIENT_URL` must contain the frontend origin because the browser's `EventSource` connects cross-origin.
 
 Render supplies `PORT` automatically. Do not commit `.env` files, database credentials, JWT secrets, or real admin passwords.
 
@@ -195,7 +200,7 @@ PORT=5000
 NODE_ENV=development
 MONGO_URI=mongodb://127.0.0.1:27017/hospital_appointments
 JWT_SECRET=<your local development secret>
-JWT_EXPIRES_IN=7d
+ACCESS_TOKEN_EXPIRES_IN=15m
 CLIENT_URL=http://localhost:5173
 
 ADMIN_NAME=System Admin
@@ -257,8 +262,14 @@ The following endpoints are documented by the project:
 |---|---|---|---|
 | `GET` | `/api/health` | Public | API and database health |
 | `POST` | `/api/auth/register` | Public | Register a patient or doctor |
-| `POST` | `/api/auth/login` | Public | Log in and receive a JWT |
+| `POST` | `/api/auth/login` | Public | Log in and receive a JWT (sets the refresh cookie) |
+| `POST` | `/api/auth/refresh` | Refresh cookie + CSRF header | Rotate the refresh token and issue a new access token |
+| `POST` | `/api/auth/logout` | Refresh cookie + CSRF header | Revoke this device's session and clear the cookies |
+| `GET` | `/api/auth/sessions` | Authenticated | List the caller's active sessions |
+| `DELETE` | `/api/auth/sessions/:id` | Authenticated | Revoke one of the caller's sessions |
+| `DELETE` | `/api/auth/sessions` | Authenticated | Revoke all of the caller's sessions |
 | `GET` | `/api/auth/me` | Authenticated | Get the current user |
+| `GET` | `/api/admin/audit-logs` | Admin | Paginated, filterable audit trail |
 | `GET` | `/api/departments` | Public | List active departments |
 | `POST` | `/api/departments` | Admin | Create a department |
 | `GET` | `/api/doctors` | Authenticated | List/search doctors |
@@ -270,6 +281,8 @@ The following endpoints are documented by the project:
 | `GET` | `/api/appointments/my` | Patient | View the patient's appointments |
 | `PATCH` | `/api/appointments/:id/cancel` | Patient/Doctor/Admin | Cancel an appointment and trigger waiting-list handling |
 | `PATCH` | `/api/appointments/:id/status` | Doctor/Admin | Update appointment status |
+| `POST` | `/api/notifications/ticket` | Patient | Issue a short-lived single-use ticket for the notification stream |
+| `GET` | `/api/notifications/stream` | Ticket (query string) | Server-Sent Events stream of waiting-list reassignment notices |
 | `POST` | `/api/waiting-list` | Patient | Join a waiting list |
 | `GET` | `/api/waiting-list/my` | Patient | View waiting-list entries |
 | `GET` | `/api/users/stats` | Admin | Get system statistics |

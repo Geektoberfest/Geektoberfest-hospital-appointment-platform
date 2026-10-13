@@ -5,6 +5,8 @@ const Appointment = require('../models/Appointment');
 const { HttpError, asyncHandler } = require('../middlewares/errorHandler');
 const { isValidEmail, isValidObjectId, isValidDate, escapeRegex, pick } = require('../utils/validators');
 const { getCache, setCache, clearCache } = require('../config/redis');
+const { recordAudit, AUDIT_ACTIONS } = require('../utils/audit');
+const { revokeSessions } = require('../utils/sessionStore');
 
 const doctorPopulate = [
   { path: 'user', select: 'name email phone isActive' },
@@ -107,8 +109,17 @@ const getDoctor = asyncHandler(async (req, res) => {
 
 // POST /api/doctors  (admin)
 const createDoctor = asyncHandler(async (req, res) => {
-  const { doctor } = await createDoctorAccount(req.body);
+  const { user, doctor } = await createDoctorAccount(req.body);
   await clearCache('doctors:*');
+  await recordAudit({
+    action: AUDIT_ACTIONS.ADMIN_DOCTOR_CREATED,
+    outcome: 'success',
+    req,
+    targetUser: user._id,
+    targetType: 'doctor',
+    targetId: String(doctor._id),
+    description: 'Admin onboarded a doctor account',
+  });
   res.status(201).json({ success: true, message: 'Doctor created', data: doctor });
 });
 
@@ -162,6 +173,16 @@ const updateDoctor = asyncHandler(async (req, res) => {
   if (!doctor) throw new HttpError(404, 'Doctor not found');
   const updated = await applyProfileUpdate(doctor, req.body, { allowAdminFields: true });
   await clearCache('doctors:*');
+  await recordAudit({
+    action: AUDIT_ACTIONS.ADMIN_DOCTOR_UPDATED,
+    outcome: 'success',
+    req,
+    targetUser: doctor.user,
+    targetType: 'doctor',
+    targetId: String(doctor._id),
+    description: 'Admin updated a doctor profile',
+    metadata: { fields: Object.keys(req.body || {}).slice(0, 20) },
+  });
   res.status(200).json({ success: true, message: 'Doctor updated', data: updated });
 });
 
@@ -174,6 +195,17 @@ const deactivateDoctor = asyncHandler(async (req, res) => {
   await doctor.save();
   await User.updateOne({ _id: doctor.user }, { isActive: false });
   await clearCache('doctors:*');
+  const revokedSessions = await revokeSessions({ user: doctor.user }, 'account_deactivated');
+  await recordAudit({
+    action: AUDIT_ACTIONS.ADMIN_DOCTOR_DEACTIVATED,
+    outcome: 'success',
+    req,
+    targetUser: doctor.user,
+    targetType: 'doctor',
+    targetId: String(doctor._id),
+    description: 'Admin deactivated a doctor account',
+    metadata: { revokedSessions },
+  });
   res.status(200).json({ success: true, message: 'Doctor deactivated', data: await doctor.populate(doctorPopulate) });
 });
 

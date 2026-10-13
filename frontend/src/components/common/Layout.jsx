@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { NavLink, Outlet, useNavigate } from 'react-router-dom';
 import useAuth from '../../hooks/useAuth';
+import NotificationBanner from './NotificationBanner';
 
 const NAV = {
   patient: [
@@ -9,12 +10,14 @@ const NAV = {
     ['/patient/appointments', 'My Appointments'],
     ['/patient/waiting-list', 'Waiting List'],
     ['/patient/profile', 'Profile'],
+    ['/patient/sessions', 'Sessions'],
   ],
   doctor: [
     ['/doctor', 'Dashboard', true],
     ['/doctor/availability', 'Availability'],
     ['/doctor/appointments', 'Appointments'],
     ['/doctor/profile', 'Profile'],
+    ['/doctor/sessions', 'Sessions'],
   ],
   admin: [
     ['/admin', 'Dashboard', true],
@@ -24,6 +27,8 @@ const NAV = {
     ['/admin/appointments', 'Appointments'],
     ['/admin/waiting-list', 'Waiting Lists'],
     ['/admin/analytics', 'Analytics'],
+    ['/admin/audit-logs', 'Audit Logs'],
+    ['/admin/sessions', 'Sessions'],
   ],
 };
 
@@ -33,8 +38,8 @@ export default function Layout() {
   const [open, setOpen] = useState(false);
   const links = NAV[user.role] || [];
 
-  const handleLogout = () => {
-    logout();
+  const handleLogout = async () => {
+    await logout();
     navigate('/login');
   };
 
@@ -79,6 +84,7 @@ export default function Layout() {
           </div>
         </header>
         <main className="flex-1 p-4 md:p-8">
+          <NotificationBanner />
           <Outlet />
         </main>
       </div>

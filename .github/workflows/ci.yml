@@ -1,0 +1,84 @@
+name: CI
+
+# Run on every push and every pull request.
+#
+# Deliberately no `branches:` filter: this repository works on several branch prefixes
+# (`feat/`, `fix/`, `test/`, `chore/`) alongside the default branch, so restricting the
+# triggers to a fixed prefix list would silently skip checks on real work.
+on:
+  push:
+  pull_request:
+
+# The workflow only reads the repository; nothing here needs a write token.
+permissions:
+  contents: read
+
+jobs:
+  frontend:
+    name: Frontend tests and production build
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        # Every `run` step below executes inside the frontend workspace.
+        working-directory: frontend
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v7
+        with:
+          # `node --test` (the project's runner) needs >= 18; vite 8 and
+          # @vitejs/plugin-react 6 declare ^20.19.0 || >=22.12.0. Node 24 is the current
+          # LTS line and matches the version used for local verification.
+          node-version: '24'
+          cache: npm
+          # Resolved from the repository root (setup-node does not use the step working
+          # directory for this input), so the path is spelled out explicitly.
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install dependencies
+        # `npm ci` installs exactly the versions in package-lock.json and fails if the
+        # lockfile and package.json disagree, keeping CI reproducible.
+        run: npm ci
+
+      - name: Run frontend unit tests
+        # `npm test` is `node --test tests/*.test.js`: a single non-interactive run with
+        # no watch mode, so no CI-specific script variant is required.
+        run: npm test
+
+      - name: Build production bundle
+        # `vite build` also fails the job on a syntax/import error anywhere in the frontend.
+        run: npm run build
+
+  backend:
+    name: Backend tests
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: backend/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Check that every backend file parses
+        # Catches syntax errors in files the test suite never imports (e.g. scripts/seed.js).
+        run: |
+          for file in $(git ls-files '*.js'); do
+            node --check "$file"
+          done
+
+      - name: Run backend test suite
+        # The suites stub every database call and set their own test environment values,
+        # so no MongoDB instance, .env file or repository secret is needed here.
+        run: npm test

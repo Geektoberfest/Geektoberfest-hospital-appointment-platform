@@ -4,11 +4,21 @@ const cors = require('cors');
 const connectDB = require('./config/db');
 const { notFound, errorHandler } = require('./middlewares/errorHandler');
 const { authRateLimiter } = require('./middlewares/rateLimiter');
+const { requestContext } = require('./middlewares/requestContext');
 
 const app = express();
 
+// Behind Render/Vercel the real client IP arrives in X-Forwarded-For. Set
+// TRUST_PROXY=1 there so rate limiting and audit records see the real IP.
+if (process.env.TRUST_PROXY) {
+  app.set('trust proxy', /^\d+$/.test(process.env.TRUST_PROXY) ? Number(process.env.TRUST_PROXY) : process.env.TRUST_PROXY);
+}
+
 const allowedOrigins = (process.env.CLIENT_URL || 'http://localhost:5173').split(',').map((s) => s.trim());
-app.use(cors({ origin: allowedOrigins }));
+// credentials:true lets the browser store/send the HttpOnly refresh cookie.
+// The origin must stay an explicit allowlist (never '*') for that to be allowed.
+app.use(cors({ origin: allowedOrigins, credentials: true }));
+app.use(requestContext);
 app.use(express.json({ limit: '1mb' }));
 
 app.use('/api/health', require('./routes/healthRoutes'));
@@ -23,6 +33,8 @@ app.use('/api/departments', require('./routes/departmentRoutes'));
 app.use('/api/availability', require('./routes/availabilityRoutes'));
 app.use('/api/appointments', require('./routes/appointmentRoutes'));
 app.use('/api/waiting-list', require('./routes/waitingListRoutes'));
+// SSE stream for waiting-list reassignments (ticket + stream endpoints).
+app.use('/api/notifications', require('./routes/notificationRoutes'));
 
 app.use(notFound);
 app.use(errorHandler);

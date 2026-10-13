@@ -30,6 +30,8 @@ import AdminDepartments from './pages/admin/Departments';
 import AdminAppointments from './pages/admin/Appointments';
 import AdminWaitingLists from './pages/admin/WaitingLists';
 import AnalyticsDashboard from './pages/admin/AnalyticsDashboard';
+import AuditLogs from './pages/admin/AuditLogs';
+import Sessions from './pages/Sessions';
 
 function RootRedirect() {
   const { user, loading } = useAuth();
@@ -55,6 +57,7 @@ export default function App() {
           <Route path="/patient/appointments/:id" element={<PatientAppointmentDetails />} />
           <Route path="/patient/waiting-list" element={<WaitingList />} />
           <Route path="/patient/profile" element={<PatientProfile />} />
+          <Route path="/patient/sessions" element={<Sessions />} />
         </Route>
       </Route>
 
@@ -65,6 +68,7 @@ export default function App() {
           <Route path="/doctor/availability" element={<AvailabilityManagement />} />
           <Route path="/doctor/appointments" element={<DoctorAppointments />} />
           <Route path="/doctor/appointments/:id" element={<DoctorAppointmentDetails />} />
+          <Route path="/doctor/sessions" element={<Sessions />} />
         </Route>
       </Route>
 
@@ -77,6 +81,8 @@ export default function App() {
           <Route path="/admin/appointments" element={<AdminAppointments />} />
           <Route path="/admin/waiting-list" element={<AdminWaitingLists />} />
           <Route path="/admin/analytics" element={<AnalyticsDashboard />} />
+          <Route path="/admin/audit-logs" element={<AuditLogs />} />
+          <Route path="/admin/sessions" element={<Sessions />} />
         </Route>
       </Route>
 

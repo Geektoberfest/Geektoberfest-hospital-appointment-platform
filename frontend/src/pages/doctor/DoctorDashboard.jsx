@@ -6,7 +6,7 @@ import StatCard from '../../components/admin/StatCard';
 import AppointmentList from '../../components/appointments/AppointmentList';
 import Alert from '../../components/common/Alert';
 import PageHeader from '../../components/common/PageHeader';
-import Spinner from '../../components/common/Spinner';
+import { SkeletonStatGrid, SkeletonTable } from '../../components/common/Skeleton';
 import useAuth from '../../hooks/useAuth';
 import useFetch from '../../hooks/useFetch';
 import { todayString } from '../../utils/format';
@@ -17,7 +17,32 @@ export default function DoctorDashboard() {
   const avail = useFetch(() => availabilityApi.getMyAvailability({ from: todayString() }));
   const waiting = useFetch(() => waitingListApi.listWaitingList({ status: 'waiting' }));
 
-  if (appts.loading || avail.loading || waiting.loading) return <Spinner />;
+  // The header depends only on the signed-in user, so the loading and loaded states share
+  // it: showing the real header while data loads avoids a layout jump.
+  const header = (
+    <PageHeader
+      title={`Welcome, Dr. ${user.name.replace(/^Dr\.?\s*/i, '')}`}
+      subtitle="Your schedule at a glance"
+      actions={<Link to="/doctor/availability" className="btn-primary">Manage availability</Link>}
+    />
+  );
+
+  // While any request is in flight, mirror the loaded dashboard: the four stat cards, then
+  // the next appointments table. The status region announces the state once.
+  if (appts.loading || avail.loading || waiting.loading) {
+    return (
+      <div>
+        {header}
+        <div role="status" aria-busy="true">
+          <span className="sr-only">Loading dashboard…</span>
+          <SkeletonStatGrid count={4} />
+          <h2 className="mb-3 text-lg font-semibold">Next appointments</h2>
+          <SkeletonTable rows={5} columns={5} />
+        </div>
+      </div>
+    );
+  }
+
   const today = todayString();
   const all = appts.data || [];
   const booked = all.filter((a) => a.status === 'booked' && a.date >= today);
@@ -25,11 +50,7 @@ export default function DoctorDashboard() {
 
   return (
     <div>
-      <PageHeader
-        title={`Welcome, Dr. ${user.name.replace(/^Dr\.?\s*/i, '')}`}
-        subtitle="Your schedule at a glance"
-        actions={<Link to="/doctor/availability" className="btn-primary">Manage availability</Link>}
-      />
+      {header}
       <Alert>{appts.error || avail.error || waiting.error}</Alert>
       <div className="mb-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <StatCard label="Today's appointments" value={todays.length} tone="sky" />

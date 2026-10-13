@@ -6,6 +6,8 @@ const WaitingList = require('../models/WaitingList');
 const { HttpError, asyncHandler } = require('../middlewares/errorHandler');
 const { isValidObjectId, todayString, escapeRegex, pick } = require('../utils/validators');
 const { clearCache } = require('../config/redis');
+const { recordAudit, AUDIT_ACTIONS } = require('../utils/audit');
+const { revokeSessions } = require('../utils/sessionStore');
 
 // GET /api/users?role=&search=  (admin)
 const listUsers = asyncHandler(async (req, res) => {
@@ -47,6 +49,17 @@ const updateUser = asyncHandler(async (req, res) => {
     }
     await clearCache('doctors:*');
   }
+  await recordAudit({
+    action: AUDIT_ACTIONS.ADMIN_USER_UPDATED,
+    outcome: 'success',
+    req,
+    targetUser: user._id,
+    targetType: 'user',
+    targetId: String(user._id),
+    description: `Admin updated user fields for role ${user.role}`,
+    // Field names only: values may contain personal data.
+    metadata: { fields: Object.keys(updates) },
+  });
   res.status(200).json({ success: true, message: 'User updated', data: user });
 });
 
@@ -62,6 +75,18 @@ const deactivateUser = asyncHandler(async (req, res) => {
     await Doctor.updateOne({ user: user._id }, { isActive: false });
     await clearCache('doctors:*');
   }
+  // A deactivated account must not keep usable sessions around for a later reactivation.
+  const revokedSessions = await revokeSessions({ user: user._id }, 'account_deactivated');
+  await recordAudit({
+    action: AUDIT_ACTIONS.ADMIN_USER_DEACTIVATED,
+    outcome: 'success',
+    req,
+    targetUser: user._id,
+    targetType: 'user',
+    targetId: String(user._id),
+    description: `Admin deactivated a ${user.role} account`,
+    metadata: { revokedSessions },
+  });
   res.status(200).json({ success: true, message: 'User deactivated', data: user });
 });
 
