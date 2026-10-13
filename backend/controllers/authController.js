@@ -15,7 +15,9 @@ const doctorPopulate = [
 
 // POST /api/auth/register  (public: patient or doctor; admins are never self-created)
 const register = asyncHandler(async (req, res) => {
-  const { name, email, password, role = 'patient', phone } = req.body;
+  // Express 5 leaves req.body undefined when nothing was parsed (a request without a JSON
+  // content type, for example), which is a validation error - not a 500.
+  const { name, email, password, role = 'patient', phone } = req.body || {};
 
   if (role === 'admin') throw new HttpError(403, 'Admin accounts cannot be created via registration');
   if (!['patient', 'doctor'].includes(role)) throw new HttpError(400, 'Role must be patient or doctor');
@@ -63,7 +65,7 @@ const register = asyncHandler(async (req, res) => {
 
 // POST /api/auth/login
 const login = asyncHandler(async (req, res) => {
-  const { email, password } = req.body;
+  const { email, password } = req.body || {}; // same guard as register
   if (!isValidEmail(email) || typeof password !== 'string' || !password) {
     throw new HttpError(400, 'Email and password are required');
   }
