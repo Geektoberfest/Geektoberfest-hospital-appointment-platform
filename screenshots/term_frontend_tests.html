@@ -1,0 +1,70 @@
+<!DOCTYPE html><html><head><meta charset="utf-8">
+  <style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: #18181b;
+    padding: 30px;
+    font-family: 'Cascadia Code', 'Consolas', 'Courier New', monospace;
+    display: flex;
+    justify-content: center;
+  }
+  .window {
+    width: 860px;
+    background: #0c0c0c;
+    border-radius: 10px;
+    box-shadow: 0 20px 50px rgba(0,0,0,0.7), 0 0 0 1px rgba(255,255,255,0.08);
+    overflow: hidden;
+  }
+  .bar {
+    background: #1f1f1f;
+    padding: 10px 16px;
+    display: flex;
+    align-items: center;
+    border-bottom: 1px solid rgba(255,255,255,0.06);
+    gap: 8px;
+  }
+  .d { width:12px;height:12px;border-radius:50%; }
+  .r{background:#ff5f56}.y{background:#ffbd2e}.g{background:#27c93f}
+  .ttl { color:#aaa; font-size:13px; margin-left:8px; }
+  pre {
+    padding: 22px 26px;
+    font-size:13.5px;
+    line-height: 1.65;
+    color: #ccc;
+    white-space: pre-wrap;
+    word-break: break-word;
+  }
+  .p { color:#569cd6; font-weight:bold; }
+  .cmd { color:#fff; font-weight:bold; }
+  .ok  { color:#3fb950; font-weight:bold; }
+  .info{ color:#58a6ff; font-weight:bold; }
+  .dim { color:#6e7681; }
+  .cyan{ color:#39c5cf; }
+  .muted{color:#8b949e;}
+</style></head><body>
+  <div class="window">
+    <div class="bar">
+      <div class="d r"></div><div class="d y"></div><div class="d g"></div>
+      <span class="ttl">PowerShell — frontend</span>
+    </div>
+    <pre><span class="p">PS C:\Users\harsh\Desktop\Geektoberfest-hospital-appointment-platform\frontend&gt;</span> <span class="cmd">npm test</span>
+
+<span class="muted">&gt; hospital-appointment-frontend@1.0.0 test
+&gt; node --test tests/*.test.js</span>
+
+<span class="ok">✔</span> normalizeApiUrl handles undefined and empty strings <span class="dim">(0.8038ms)</span>
+<span class="ok">✔</span> normalizeApiUrl appends /api if missing from domain <span class="dim">(0.2061ms)</span>
+<span class="ok">✔</span> normalizeApiUrl preserves /api if already present <span class="dim">(0.1051ms)</span>
+<span class="ok">✔</span> full Axios API endpoint URL resolution <span class="dim">(1.7884ms)</span>
+<span class="ok">✔</span> parseDepartmentList parses unwrapped response { success: true, data: [...] } <span class="dim">(0.9632ms)</span>
+<span class="ok">✔</span> parseDepartmentList parses direct array res [...] <span class="dim">(0.1519ms)</span>
+<span class="ok">✔</span> parseDepartmentList handles null, undefined, or unexpected shapes gracefully <span class="dim">(1.2966ms)</span>
+<span class="info">ℹ</span> tests 7
+<span class="info">ℹ</span> suites 0
+<span class="info">ℹ</span> pass <span class="ok">7</span>
+<span class="info">ℹ</span> fail 0
+<span class="info">ℹ</span> cancelled 0
+<span class="info">ℹ</span> skipped 0
+<span class="info">ℹ</span> todo 0
+<span class="info">ℹ</span> duration_ms <span class="dim">1011.797</span></pre>
+  </div></body></html>

@@ -140,7 +140,8 @@ Set these in the Render backend service's Environment settings:
 NODE_ENV=production
 MONGO_URI=<your MongoDB Atlas connection string>
 JWT_SECRET=<a long, random, unique production secret>
-JWT_EXPIRES_IN=7d
+ACCESS_TOKEN_EXPIRES_IN=15m
+REFRESH_TOKEN_DAYS=7
 CLIENT_URL=https://hospital-appointment-platform-front.vercel.app
 ```
 
@@ -195,7 +196,8 @@ PORT=5000
 NODE_ENV=development
 MONGO_URI=mongodb://127.0.0.1:27017/hospital_appointments
 JWT_SECRET=<your local development secret>
-JWT_EXPIRES_IN=7d
+ACCESS_TOKEN_EXPIRES_IN=15m
+REFRESH_TOKEN_DAYS=7
 CLIENT_URL=http://localhost:5173
 
 ADMIN_NAME=System Admin
