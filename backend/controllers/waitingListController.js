@@ -4,6 +4,7 @@ const Availability = require('../models/Availability');
 const Doctor = require('../models/Doctor');
 const { HttpError, asyncHandler } = require('../middlewares/errorHandler');
 const { isValidObjectId, isValidDate, isValidTime, todayString, isPastSlot } = require('../utils/validators');
+const { notifyUser } = require('../services/notificationService');
 
 /**
  * Called after an appointment is cancelled. Gives the freed slot to the first
@@ -46,6 +47,22 @@ const assignFromWaitingList = async (cancelled) => {
       entry.status = 'assigned';
       entry.appointment = appointment._id;
       await entry.save();
+
+      // Notify the patient via SSE (fire-and-forget).
+      // Wrapped in try/catch so a notification failure never breaks the assignment.
+      try {
+        notifyUser(entry.patient, 'waitlist.assigned', {
+          appointmentId: String(appointment._id),
+          doctor: doctor ? doctor.name : String(cancelled.doctor),
+          date: cancelled.date,
+          startTime: cancelled.startTime,
+          endTime: cancelled.endTime,
+          message: 'A slot has been assigned to you from the waiting list!',
+        });
+      } catch (_) {
+        // Intentionally swallowed – notification is best-effort.
+      }
+
       return appointment;
     } catch (err) {
       if (err.code === 11000) continue; // slot or patient time already taken, try the next entry

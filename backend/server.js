@@ -29,6 +29,7 @@ app.use('/api/departments', require('./routes/departmentRoutes'));
 app.use('/api/availability', require('./routes/availabilityRoutes'));
 app.use('/api/appointments', require('./routes/appointmentRoutes'));
 app.use('/api/waiting-list', require('./routes/waitingListRoutes'));
+app.use('/api/notifications', require('./routes/notificationRoutes'));
 
 app.use(notFound);
 app.use(errorHandler);
