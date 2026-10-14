@@ -91,6 +91,7 @@ export function createNotificationStream({
   onNotification,
   onStatus,
   onError,
+  jitter = false,
   setTimeout: schedule = setTimeout,
   clearTimeout: unschedule = clearTimeout,
 } = {}) {
@@ -124,7 +125,8 @@ export function createNotificationStream({
   const scheduleReconnect = () => {
     if (stopped || retryTimer !== null) return;
     attempt += 1;
-    const delay = nextBackoffMs(attempt);
+    const baseDelay = nextBackoffMs(attempt);
+    const delay = jitter ? baseDelay + Math.floor(Math.random() * 1000) : baseDelay;
     emitStatus('reconnecting', { delay });
     const generationAtSchedule = generation;
 

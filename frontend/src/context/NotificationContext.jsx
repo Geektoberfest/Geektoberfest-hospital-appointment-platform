@@ -31,6 +31,7 @@ export function NotificationProvider({ children }) {
       createEventSource: (ticket) => new EventSource(notificationApi.buildStreamUrl(ticket)),
       onNotification: (notification) => setNotifications((prev) => mergeNotification(prev, notification)),
       onStatus: ({ state }) => setStatus(state),
+      jitter: true,
     });
 
     stream.start();
