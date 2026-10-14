@@ -41,6 +41,11 @@ test('full Axios API endpoint URL resolution', () => {
   assert.equal(instance.getUri({ url: '/auth/register' }), 'https://hospital-appointment-platform.onrender.com/api/auth/register');
   assert.equal(instance.getUri({ url: '/auth/login' }), 'https://hospital-appointment-platform.onrender.com/api/auth/login');
   assert.equal(instance.getUri({ url: '/auth/me' }), 'https://hospital-appointment-platform.onrender.com/api/auth/me');
+  assert.equal(instance.getUri({ url: '/auth/refresh' }), 'https://hospital-appointment-platform.onrender.com/api/auth/refresh');
+  assert.equal(instance.getUri({ url: '/auth/logout' }), 'https://hospital-appointment-platform.onrender.com/api/auth/logout');
+  assert.equal(instance.getUri({ url: '/auth/logout-all' }), 'https://hospital-appointment-platform.onrender.com/api/auth/logout-all');
+  assert.equal(instance.getUri({ url: '/auth/sessions' }), 'https://hospital-appointment-platform.onrender.com/api/auth/sessions');
+  assert.equal(instance.getUri({ url: '/admin/audit-logs' }), 'https://hospital-appointment-platform.onrender.com/api/admin/audit-logs');
   assert.equal(instance.getUri({ url: '/appointments' }), 'https://hospital-appointment-platform.onrender.com/api/appointments');
   assert.equal(instance.getUri({ url: '/doctors' }), 'https://hospital-appointment-platform.onrender.com/api/doctors');
   assert.equal(instance.getUri({ url: '/departments' }), 'https://hospital-appointment-platform.onrender.com/api/departments');

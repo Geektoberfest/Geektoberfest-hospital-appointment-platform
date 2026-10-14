@@ -44,9 +44,15 @@ export function AuthProvider({ children }) {
   const login = useCallback(async (credentials) => applySession((await authApi.login(credentials)).data), [applySession]);
   const register = useCallback(async (payload) => applySession((await authApi.register(payload)).data), [applySession]);
 
+  // Revokes this device's refresh session on the server; local state clears either way.
+  const logout = useCallback(() => {
+    authApi.logout().catch(() => {});
+    clearSession();
+  }, [clearSession]);
+
   const value = useMemo(
-    () => ({ user, doctor, loading, isAuthenticated: Boolean(user), login, register, logout: clearSession, setUser, setDoctor }),
-    [user, doctor, loading, login, register, clearSession]
+    () => ({ user, doctor, loading, isAuthenticated: Boolean(user), login, register, logout, setUser, setDoctor }),
+    [user, doctor, loading, login, register, logout, clearSession]
   );
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }

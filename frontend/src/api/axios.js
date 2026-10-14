@@ -19,6 +19,8 @@ export const normalizeApiUrl = (url) => {
 const api = axios.create({
   baseURL: normalizeApiUrl(import.meta.env?.VITE_API_URL),
   headers: { 'Content-Type': 'application/json' },
+  // Sends the HTTP-only refresh cookie to the API.
+  withCredentials: true,
 });
 
 api.interceptors.request.use((config) => {
@@ -27,15 +29,48 @@ api.interceptors.request.use((config) => {
   return config;
 });
 
-// An expired/invalid token on a protected call signs the user out (login failures are ignored).
+// Auth endpoints handle their own 401s; retrying them would loop.
+const AUTH_PATH = /^\/auth\/(login|register|refresh|logout)/;
+
+// Shared promise so parallel 401s trigger one refresh, not several.
+let refreshing = null;
+const refreshAccessToken = () => {
+  if (!refreshing) {
+    // Plain axios, not `api`, so this request skips the 401 handler.
+    refreshing = axios
+      .post(`${api.defaults.baseURL}/auth/refresh`, null, { withCredentials: true })
+      .then((res) => {
+        localStorage.setItem(TOKEN_KEY, res.data.data.token);
+        return res.data.data.token;
+      })
+      .finally(() => {
+        refreshing = null;
+      });
+  }
+  return refreshing;
+};
+
+// An expired access token is renewed from the refresh cookie and the call is retried.
+// If renewal fails, the user is signed out (login failures are ignored).
 api.interceptors.response.use(
   (res) => res,
   (error) => {
-    const url = error.config?.url || '';
-    if (error.response?.status === 401 && !url.startsWith('/auth/login') && localStorage.getItem(TOKEN_KEY)) {
-      window.dispatchEvent(new Event('auth:logout'));
+    const original = error.config;
+    const url = original?.url || '';
+    if (error.response?.status !== 401 || AUTH_PATH.test(url) || !localStorage.getItem(TOKEN_KEY)) {
+      return Promise.reject(error);
     }
-    return Promise.reject(error);
+    if (original._retry) {
+      window.dispatchEvent(new Event('auth:logout'));
+      return Promise.reject(error);
+    }
+    original._retry = true;
+    return refreshAccessToken()
+      .then(() => api(original))
+      .catch(() => {
+        window.dispatchEvent(new Event('auth:logout'));
+        return Promise.reject(error);
+      });
   }
 );
 
