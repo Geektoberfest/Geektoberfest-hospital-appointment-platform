@@ -1,15 +1,21 @@
 require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
+const cookieParser = require('cookie-parser');
 const connectDB = require('./config/db');
 const { notFound, errorHandler } = require('./middlewares/errorHandler');
 const { authRateLimiter } = require('./middlewares/rateLimiter');
 
 const app = express();
 
+// Render sits behind a proxy; trust it so req.ip (rate limiting, audit logs) is the client IP.
+app.set('trust proxy', 1);
+
 const allowedOrigins = (process.env.CLIENT_URL || 'http://localhost:5173').split(',').map((s) => s.trim());
-app.use(cors({ origin: allowedOrigins }));
+// credentials: the browser must send the HTTP-only refresh cookie to the API.
+app.use(cors({ origin: allowedOrigins, credentials: true }));
 app.use(express.json({ limit: '1mb' }));
+app.use(cookieParser());
 
 app.use('/api/health', require('./routes/healthRoutes'));
 app.use('/api/auth/login', authRateLimiter);

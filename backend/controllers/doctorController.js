@@ -5,6 +5,8 @@ const Appointment = require('../models/Appointment');
 const { HttpError, asyncHandler } = require('../middlewares/errorHandler');
 const { isValidEmail, isValidObjectId, isValidDate, escapeRegex, pick } = require('../utils/validators');
 const { getCache, setCache, clearCache } = require('../config/redis');
+const { revokeAllSessions } = require('../utils/session');
+const { recordAudit } = require('../utils/auditLog');
 
 const doctorPopulate = [
   { path: 'user', select: 'name email phone isActive' },
@@ -109,6 +111,7 @@ const getDoctor = asyncHandler(async (req, res) => {
 const createDoctor = asyncHandler(async (req, res) => {
   const { doctor } = await createDoctorAccount(req.body);
   await clearCache('doctors:*');
+  await recordAudit({ req, action: 'doctor.create', targetType: 'doctor', targetId: doctor._id });
   res.status(201).json({ success: true, message: 'Doctor created', data: doctor });
 });
 
@@ -126,6 +129,7 @@ const applyProfileUpdate = async (doctor, body, { allowAdminFields }) => {
     if (body.isActive !== undefined) {
       doctor.isActive = Boolean(body.isActive);
       await User.updateOne({ _id: doctor.user }, { isActive: doctor.isActive });
+      if (!doctor.isActive) await revokeAllSessions(doctor.user);
     }
   }
 
@@ -162,6 +166,7 @@ const updateDoctor = asyncHandler(async (req, res) => {
   if (!doctor) throw new HttpError(404, 'Doctor not found');
   const updated = await applyProfileUpdate(doctor, req.body, { allowAdminFields: true });
   await clearCache('doctors:*');
+  await recordAudit({ req, action: 'doctor.update', targetType: 'doctor', targetId: doctor._id });
   res.status(200).json({ success: true, message: 'Doctor updated', data: updated });
 });
 
@@ -173,7 +178,9 @@ const deactivateDoctor = asyncHandler(async (req, res) => {
   doctor.isActive = false;
   await doctor.save();
   await User.updateOne({ _id: doctor.user }, { isActive: false });
+  await revokeAllSessions(doctor.user);
   await clearCache('doctors:*');
+  await recordAudit({ req, action: 'doctor.deactivate', targetType: 'doctor', targetId: doctor._id });
   res.status(200).json({ success: true, message: 'Doctor deactivated', data: await doctor.populate(doctorPopulate) });
 });
 

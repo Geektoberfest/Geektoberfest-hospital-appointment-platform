@@ -2,6 +2,7 @@ const Department = require('../models/Department');
 const { HttpError, asyncHandler } = require('../middlewares/errorHandler');
 const { isValidObjectId } = require('../utils/validators');
 const { getCache, setCache, clearCache } = require('../config/redis');
+const { recordAudit } = require('../utils/auditLog');
 
 const DEFAULT_DEPARTMENTS = [
   { name: 'General Medicine', description: 'Primary care and general health concerns' },
@@ -52,6 +53,7 @@ const createDepartment = asyncHandler(async (req, res) => {
   const department = await Department.create({ name, description });
   await clearCache('departments:*');
   await clearCache('doctors:*');
+  await recordAudit({ req, action: 'department.create', targetType: 'department', targetId: department._id });
   res.status(201).json({ success: true, message: 'Department created', data: department });
 });
 
@@ -70,6 +72,13 @@ const updateDepartment = asyncHandler(async (req, res) => {
   await department.save();
   await clearCache('departments:*');
   await clearCache('doctors:*');
+  await recordAudit({
+    req,
+    action: 'department.update',
+    targetType: 'department',
+    targetId: department._id,
+    details: { fields: Object.keys(req.body) },
+  });
   res.status(200).json({ success: true, message: 'Department updated', data: department });
 });
 
@@ -82,6 +91,7 @@ const deactivateDepartment = asyncHandler(async (req, res) => {
   await department.save();
   await clearCache('departments:*');
   await clearCache('doctors:*');
+  await recordAudit({ req, action: 'department.deactivate', targetType: 'department', targetId: department._id });
   res.status(200).json({ success: true, message: 'Department deactivated', data: department });
 });
 

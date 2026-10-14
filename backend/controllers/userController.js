@@ -6,6 +6,8 @@ const WaitingList = require('../models/WaitingList');
 const { HttpError, asyncHandler } = require('../middlewares/errorHandler');
 const { isValidObjectId, todayString, escapeRegex, pick } = require('../utils/validators');
 const { clearCache } = require('../config/redis');
+const { revokeAllSessions } = require('../utils/session');
+const { recordAudit } = require('../utils/auditLog');
 
 // GET /api/users?role=&search=  (admin)
 const listUsers = asyncHandler(async (req, res) => {
@@ -47,6 +49,14 @@ const updateUser = asyncHandler(async (req, res) => {
     }
     await clearCache('doctors:*');
   }
+  if (updates.isActive === false) await revokeAllSessions(user._id);
+  await recordAudit({
+    req,
+    action: 'user.update',
+    targetType: 'user',
+    targetId: user._id,
+    details: { fields: Object.keys(updates) },
+  });
   res.status(200).json({ success: true, message: 'User updated', data: user });
 });
 
@@ -62,6 +72,8 @@ const deactivateUser = asyncHandler(async (req, res) => {
     await Doctor.updateOne({ user: user._id }, { isActive: false });
     await clearCache('doctors:*');
   }
+  await revokeAllSessions(user._id);
+  await recordAudit({ req, action: 'user.deactivate', targetType: 'user', targetId: user._id });
   res.status(200).json({ success: true, message: 'User deactivated', data: user });
 });
 
