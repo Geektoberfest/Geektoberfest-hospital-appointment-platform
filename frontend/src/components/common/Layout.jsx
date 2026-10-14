@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { NavLink, Outlet, useNavigate } from 'react-router-dom';
 import useAuth from '../../hooks/useAuth';
+import NotificationBanner from './NotificationBanner';
 
 const NAV = {
   patient: [
@@ -40,6 +41,8 @@ export default function Layout() {
 
   return (
     <div className="min-h-screen md:flex">
+      {/* Global SSE notification toasts */}
+      <NotificationBanner />
       <aside className={`${open ? 'block' : 'hidden'} w-full shrink-0 bg-brand-900 text-brand-100 md:block md:w-60`}>
         <div className="flex items-center gap-2 px-5 py-5 text-white">
           <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-brand-600 font-bold">+</span>
