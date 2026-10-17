@@ -21,7 +21,7 @@ const crypto = require('crypto');
 
 const DEFAULT_HEARTBEAT_MS = 25000;
 // One patient cannot realistically need more than a handful of open tabs/streams.
-const MAX_CONNECTIONS_PER_USER = 10;
+const MAX_CONNECTIONS_PER_USER = 5;
 // Global guard rail so a connection flood cannot grow the registry without bound.
 const MAX_TOTAL_CONNECTIONS = 5000;
 
@@ -48,12 +48,16 @@ const isWritable = (res) =>
 
 /**
  * Write one chunk, tolerating a socket that went away between the check and the write.
- * A failed write is treated exactly like a disconnect.
+ * Handles backpressure: res.write() returns false when TCP buffer is full; drops slow clients.
  */
 const writeChunk = (client, chunk) => {
   try {
     if (!isWritable(client.res)) return false;
-    client.res.write(chunk);
+    const ok = client.res.write(chunk);
+    if (!ok) {
+      try { client.res.end(); } catch {}
+      return false;
+    }
     return true;
   } catch {
     return false;

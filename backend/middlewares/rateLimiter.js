@@ -26,4 +26,21 @@ const refreshRateLimiter = rateLimit({
   },
 });
 
-module.exports = { authRateLimiter, refreshRateLimiter };
+/**
+ * Dedicated rate limiter for notification ticket generation and SSE streams.
+ * Prevents ticket flooding and connection exhaustion attacks, while skipping
+ * in automated test runs (NODE_ENV=test).
+ */
+const notificationRateLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  limit: 60,
+  skip: () => process.env.NODE_ENV === 'test',
+  standardHeaders: 'draft-8',
+  legacyHeaders: false,
+  message: {
+    success: false,
+    message: 'Too many notification requests. Please try again later.',
+  },
+});
+
+module.exports = { authRateLimiter, refreshRateLimiter, notificationRateLimiter };
