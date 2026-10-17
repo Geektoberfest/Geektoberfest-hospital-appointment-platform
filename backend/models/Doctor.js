@@ -9,6 +9,8 @@ const doctorSchema = new mongoose.Schema(
     experience: { type: Number, min: 0, max: 70, default: 0 }, // years
     consultationFee: { type: Number, min: 0, default: 0 },
     bio: { type: String, trim: true, default: '' },
+    ratingAverage: { type: Number, min: 0, max: 5, default: 0 },
+    reviewCount: { type: Number, min: 0, default: 0 },
     isActive: { type: Boolean, default: true },
   },
   { timestamps: true }
